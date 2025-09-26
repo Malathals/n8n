@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: Asia/Riyadh
+    volumes:
+      - db_storage:/var/lib/postgresql/data
+      # If you want to create a non-root app user, keep this line and provide init-data.sh (executable).
+      # Otherwise, delete this line.
+      - ./init-data.sh:/docker-entrypoint-initdb.d/init-data.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h 127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5678:5678"  
+    environment:
+      N8N_PORT: "5678"
+      TZ: Asia/Riyadh
+      GENERIC_TIMEZONE: Asia/Riyadh
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+      # N8N_ENCRYPTION_KEY: "generate-a-long-random-string"  # recommended for persistence
+
+      N8N_RUNNERS_ENABLED: "true"
+      # Safer default; if you need $env in Code/expressions, set this to "false"
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "true"
+
+      # DB — use service name 'postgres' and default container port 5432
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+
+    volumes:
+      - n8n_storage:/home/node/.n8n
+
+volumes:
+  db_storage:
+  n8n_storage:
